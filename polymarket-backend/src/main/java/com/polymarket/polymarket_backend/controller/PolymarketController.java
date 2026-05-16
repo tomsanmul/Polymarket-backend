@@ -12,7 +12,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @RestController
-@RequestMapping("/api/markets")
+@RequestMapping("/api/gamma/markets")
 public class PolymarketController {
 
     private final PolymarketService polymarketService;
