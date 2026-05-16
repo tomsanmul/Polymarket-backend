@@ -2,6 +2,7 @@ package com.polymarket.polymarket_backend.service;
 
 import com.polymarket.polymarket_backend.model.MarketListResponse;
 import com.polymarket.polymarket_backend.model.PolyRouterMarket;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
@@ -13,10 +14,11 @@ public class PolyRouterMarketService {
 
     private final WebClient webClient;
 
-    public PolyRouterMarketService(WebClient.Builder webClientBuilder) {
+    public PolyRouterMarketService(WebClient.Builder webClientBuilder,
+                                   @Value("${polyrouter.api-key:}") String apiKey) {
         this.webClient = webClientBuilder
                 .baseUrl("https://api-v2.polyrouter.io")
-                .defaultHeader("X-API-Key", "pk_ddd423513e0d4a17c887934ec738ee248bc5d4f39f46d54a912765cf044daec6")
+                .defaultHeader("X-API-Key", apiKey)
                 .build();
     }
 
