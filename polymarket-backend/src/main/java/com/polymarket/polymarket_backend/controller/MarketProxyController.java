@@ -30,9 +30,14 @@ public class MarketProxyController {
     }
 
     @GetMapping
-    public Flux<NormalizedMarketDTO> getAllMarkets(@RequestParam(required = false) String category) {
+    public Flux<NormalizedMarketDTO> getAllMarkets(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String status) {
         Flux<PolyRouterMarket> markets;
-        if (category != null) {
+        if (query != null) {
+            markets = polyRouterMarketService.getMarketsByQuery(query, status);
+        } else if (category != null) {
             markets = polyRouterMarketService.getMarketsByCategory(category);
         } else {
             markets = polyRouterMarketService.getAllMarkets();
@@ -79,6 +84,7 @@ public class MarketProxyController {
         dto.setVolume(market.getVolumeTotal() != null ? market.getVolumeTotal() : 0.0);
         dto.setVolume24hr(market.getVolume24h() != null ? market.getVolume24h() : 0.0);
         dto.setLiquidity(market.getLiquidityScore() != null ? market.getLiquidityScore() : 0.0);
+        dto.setImage(market.getImageUrl());
         dto.setEndDate(market.getTradingEnd());
         dto.setStatus(market.getStatus() != null ? market.getStatus().name().toLowerCase() : null);
 

@@ -22,9 +22,11 @@ public class PolyRouterMarketService {
                 .build();
     }
 
+    private static final String PLATFORM_PARAM = "&platform=polymarket";
+
     public Flux<PolyRouterMarket> getAllMarkets() {
         return webClient.get()
-                .uri("/markets?limit=50")
+                .uri("/markets?limit=50" + PLATFORM_PARAM)
                 .retrieve()
                 .bodyToMono(MarketListResponse.class)
                 .flatMapMany(response -> Flux.fromIterable(
@@ -40,7 +42,24 @@ public class PolyRouterMarketService {
 
     public Flux<PolyRouterMarket> getMarketsByCategory(String category) {
         return webClient.get()
-                .uri("/markets?category={category}&limit=50", category)
+                .uri("/markets?category={category}&limit=50" + PLATFORM_PARAM, category)
+                .retrieve()
+                .bodyToMono(MarketListResponse.class)
+                .flatMapMany(response -> Flux.fromIterable(
+                        response.getMarkets() != null ? response.getMarkets() : Collections.emptyList()));
+    }
+
+    public Flux<PolyRouterMarket> getMarketsByQuery(String query, String status) {
+        if (status != null && !status.isEmpty()) {
+            return webClient.get()
+                    .uri("/markets?query={query}&status={status}&limit=50" + PLATFORM_PARAM, query, status)
+                    .retrieve()
+                    .bodyToMono(MarketListResponse.class)
+                    .flatMapMany(response -> Flux.fromIterable(
+                            response.getMarkets() != null ? response.getMarkets() : Collections.emptyList()));
+        }
+        return webClient.get()
+                .uri("/markets?query={query}&limit=50" + PLATFORM_PARAM, query)
                 .retrieve()
                 .bodyToMono(MarketListResponse.class)
                 .flatMapMany(response -> Flux.fromIterable(
@@ -49,7 +68,7 @@ public class PolyRouterMarketService {
 
     public Flux<PolyRouterMarket> getActiveMarkets() {
         return webClient.get()
-                .uri("/markets?active=true&closed=false&limit=50")
+                .uri("/markets?active=true&closed=false&limit=50" + PLATFORM_PARAM)
                 .retrieve()
                 .bodyToMono(MarketListResponse.class)
                 .flatMapMany(response -> Flux.fromIterable(

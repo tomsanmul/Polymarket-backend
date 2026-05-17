@@ -78,6 +78,9 @@ public class PolyRouterMarket {
     @JsonProperty("source_url")
     private String sourceUrl;
 
+    @JsonProperty("image_url")
+    private String imageUrl;
+
     public PolyRouterMarket() {
     }
 
@@ -263,6 +266,14 @@ public class PolyRouterMarket {
 
     public void setSourceUrl(String sourceUrl) {
         this.sourceUrl = sourceUrl;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     @Override
