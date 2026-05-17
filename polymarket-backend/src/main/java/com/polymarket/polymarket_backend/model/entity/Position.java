@@ -3,6 +3,8 @@ package com.polymarket.polymarket_backend.model.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
@@ -21,14 +23,18 @@ public class Position {
     @Column(nullable = false)
     private String side;
 
+    @Column(nullable = false)
     private double amount;
 
+    @Column(nullable = false)
     private double entryPrice;
 
+    @Column(nullable = false)
     private int shares;
 
     private String outcome;
 
+    @Column(nullable = false)
     private long timestamp;
 
     private boolean closed;
@@ -40,6 +46,10 @@ public class Position {
     private Double pnl;
 
     private Long closeTime;
+
+    @ManyToOne
+    @JoinColumn(name = "session_id")
+    private SimulatorSession session;
 
     public Position() {
     }
@@ -154,5 +164,13 @@ public class Position {
 
     public void setCloseTime(Long closeTime) {
         this.closeTime = closeTime;
+    }
+
+    public SimulatorSession getSession() {
+        return session;
+    }
+
+    public void setSession(SimulatorSession session) {
+        this.session = session;
     }
 }
