@@ -1,9 +1,12 @@
 package com.polymarket.polymarket_backend.model.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
@@ -14,9 +17,14 @@ public class PerformanceSnapshot {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private double value;
+    @Column(name = "portfolio_value")
+    private double portfolioValue;
 
     private long timestamp;
+
+    @ManyToOne
+    @JoinColumn(name = "session_id")
+    private SimulatorSession session;
 
     public PerformanceSnapshot() {
     }
@@ -29,12 +37,12 @@ public class PerformanceSnapshot {
         this.id = id;
     }
 
-    public double getValue() {
-        return value;
+    public double getPortfolioValue() {
+        return portfolioValue;
     }
 
-    public void setValue(double value) {
-        this.value = value;
+    public void setPortfolioValue(double portfolioValue) {
+        this.portfolioValue = portfolioValue;
     }
 
     public long getTimestamp() {
@@ -43,5 +51,13 @@ public class PerformanceSnapshot {
 
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
+    }
+
+    public SimulatorSession getSession() {
+        return session;
+    }
+
+    public void setSession(SimulatorSession session) {
+        this.session = session;
     }
 }

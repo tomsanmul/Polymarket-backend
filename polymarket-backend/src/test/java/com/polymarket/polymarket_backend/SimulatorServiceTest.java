@@ -220,10 +220,10 @@ class SimulatorServiceTest {
     void getPerformanceHistory_filtersByRange() {
         long now = System.currentTimeMillis();
         PerformanceSnapshot oldSnap = new PerformanceSnapshot();
-        oldSnap.setValue(90000);
+        oldSnap.setPortfolioValue(90000);
         oldSnap.setTimestamp(now - 60L * 24 * 60 * 60 * 1000);
         PerformanceSnapshot newSnap = new PerformanceSnapshot();
-        newSnap.setValue(110000);
+        newSnap.setPortfolioValue(110000);
         newSnap.setTimestamp(now);
 
         when(snapshotRepository.findAllByOrderByTimestampAsc())
@@ -232,7 +232,7 @@ class SimulatorServiceTest {
         List<PerformanceSnapshot> result = service.getPerformanceHistory("1M");
 
         assertEquals(1, result.size());
-        assertEquals(110000, result.get(0).getValue());
+        assertEquals(110000, result.get(0).getPortfolioValue());
     }
 
     private SimulatorSession createEnabledSession(double balance, double usedBalance) {

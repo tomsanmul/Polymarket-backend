@@ -99,6 +99,7 @@ public class SimulatorService {
         position.setOutcome(req.getOutcome());
         position.setTimestamp(System.currentTimeMillis());
         position.setClosed(false);
+        position.setSession(session);
         position = positionRepository.save(position);
 
         session.setBalance(session.getBalance() - req.getAmount());
@@ -195,8 +196,9 @@ public class SimulatorService {
 
         double portfolioValue = computePortfolioValue(session);
         PerformanceSnapshot snapshot = new PerformanceSnapshot();
-        snapshot.setValue(portfolioValue);
+        snapshot.setPortfolioValue(portfolioValue);
         snapshot.setTimestamp(now);
+        snapshot.setSession(session);
         snapshotRepository.save(snapshot);
 
         session.setLastSnapshotTime(now);
