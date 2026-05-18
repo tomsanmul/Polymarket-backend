@@ -112,13 +112,13 @@ class SimulatorControllerTest {
     @Test
     void getPerformance_returnsSnapshots() throws Exception {
         PerformanceSnapshot snap = new PerformanceSnapshot();
-        snap.setPortfolioValue(110000);
+        snap.setValue(110000);
         snap.setTimestamp(1000L);
         when(simulatorService.getPerformanceHistory(null)).thenReturn(List.of(snap));
 
         mockMvc.perform(get("/api/simulator/performance"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].portfolioValue").value(110000));
+                .andExpect(jsonPath("$[0].value").value(110000));
     }
 
     @Test
