@@ -114,11 +114,16 @@ public class PriceCacheService {
 
     private void cachePrices(String marketId, Map<String, PriceDetail> prices) {
         for (Map.Entry<String, PriceDetail> entry : prices.entrySet()) {
-            String outcomeIndex = entry.getKey();
+            String outcomeKey = entry.getKey().toLowerCase();
+            String canonicalIndex = switch (outcomeKey) {
+                case "yes" -> "1";
+                case "no" -> "0";
+                default -> outcomeKey;
+            };
             double price = entry.getValue().getPrice();
-            String cacheKey = marketId + ":" + outcomeIndex;
-            priceCache.put(cacheKey, price);
-            log.debug("Cached price for {} = {}", cacheKey, price);
+            String k = marketId + ":" + canonicalIndex;
+            priceCache.put(k, price);
+            log.debug("Cached price for {} = {} (from API key '{}')", k, price, entry.getKey());
         }
         log.info("Refreshed {} prices for market {}", prices.size(), marketId);
     }

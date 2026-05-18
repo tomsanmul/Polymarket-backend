@@ -16,7 +16,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
 import java.util.Map;
 
 @ExtendWith(MockitoExtension.class)
@@ -123,5 +122,22 @@ class PriceCacheServiceTest {
         priceCacheService.refreshPrice("platform_123");
 
         assertEquals(0.42, priceCacheService.getPrice("platform_123", "NO"));
+    }
+
+    @Test
+    void refreshPrice_handlesYesNoKeys() {
+        PolyRouterMarket market = new PolyRouterMarket();
+        PriceDetail yesPrice = new PriceDetail();
+        yesPrice.setPrice(0.85);
+        PriceDetail noPrice = new PriceDetail();
+        noPrice.setPrice(0.15);
+        market.setCurrentPrices(Map.of("yes", yesPrice, "no", noPrice));
+
+        when(polyRouterMarketService.getMarketById("m1")).thenReturn(Mono.just(market));
+
+        priceCacheService.refreshPrice("m1");
+
+        assertEquals(0.85, priceCacheService.getPrice("m1", "YES"));
+        assertEquals(0.15, priceCacheService.getPrice("m1", "NO"));
     }
 }
