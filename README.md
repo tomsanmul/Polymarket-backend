@@ -15,6 +15,7 @@ with persistence, price caching, and historical querying.
 | **Framework** | Spring Boot 4.0.6 (WebMVC + WebFlux)                                 |
 | **API**       | REST (`@RestController`) + GraphQL (`spring-graphql`)                |
 | **HTTP**      | Reactive `WebClient` for consuming external APIs                     |
+| **Realtime**  | WebSocket (`TextWebSocketHandler`) for push notifications            |
 | **Database**  | PostgreSQL with [Neon](https://neon.tech) (production), H2 (tests)   |
 | **ORM**       | Spring Data JPA + Hibernate + `ddl-auto=update`                      |
 | **Build**     | Maven + Wrapper                                                      |
@@ -27,16 +28,19 @@ with persistence, price caching, and historical querying.
 ```
 Client (frontend)
       │
-      ▼
+      ├── HTTP REST ──────────────────► Spring Boot Backend
+      ├── GraphQL ───────────────────► /graphql
+      └── WebSocket ◄─────────────── /ws/notifications
+
  ┌────────────────────────────────────────────────────────┐
  │                  Spring Boot Backend                   │
  │                                                        │
  │  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐ │
- │  │ REST API     │  │ GraphQL API  │  │ CORS (Vite)   │ │
- │  │ /api/**      │  │ /graphql     │  │ localhost:5173│ │
- │  └──────┬───────┘  └──────┬───────┘  └───────────────┘ │
- │         │                 │                            │
- │  ┌──────▼─────────────────▼─────────────────────────┐  │
+ │  │ REST API     │  │ GraphQL API  │  │ WebSocket     │ │
+ │  │ /api/**      │  │ /graphql     │  │ /ws/**        │ │
+ │  └──────┬───────┘  └──────┬───────┘  └───────┬───────┘ │
+ │         │                 │                  │         │
+ │  ┌──────▼─────────────────▼──────────────────▼──────┐  │
  │  │                   Services                       │  │
  │  │  ┌──────────────┐  ┌─────────────┐  ┌──────────┐ │  │
  │  │  │ MarketProxy  │  │ Simulator   │  │ Price    │ │  │
@@ -47,6 +51,11 @@ Client (frontend)
  │  │  │ PolyRouter   │  │ JPA Repos   │◄──────┘       │  │
  │  │  │ MarketService│  │ (Postgres)  │               │  │
  │  │  └──────┬───────┘  └─────────────┘               │  │
+ │  │         │                  │                     │  │
+ │  │  ┌──────▼──────────────────▼──────────────────┐  │  │
+ │  │  │      AlertService + NotificationScheduler   │  │  │
+ │  │  │   (checks alerts every 30s, pushes via WS)  │  │  │
+ │  │  └─────────────────────────────────────────────┘  │  │
  │  └─────────┼────────────────────────────────────────┘  │
  └────────────┼───────────────────────────────────────────┘
               │
@@ -175,7 +184,44 @@ type Mutation {
 
 ---
 
-## Environment Variables
+## Alerts & Notifications
+
+Real-time push notifications via WebSocket. Users can configure alerts on markets and receive instant notifications when conditions are met.
+
+### Alert Types
+
+| Type | Description |
+|------|-------------|
+| **PRICE_TARGET** | Notify when a market price reaches a configured threshold (above/below) |
+| **PERCENTAGE_CHANGE** | Notify when price moves by a configured percentage |
+| **MARKET_CLOSE** | Notify when a market closes/resolves |
+| **PREDICTION_FULFILLED** | Notify when a user's prediction outcome is confirmed |
+
+### Alerts API
+
+| Method | Route | Description |
+| ------ | ----- | ----------- |
+| POST | `/api/alerts` | Create a new alert |
+| GET | `/api/alerts?userId={id}` | List user's alerts |
+| PUT | `/api/alerts/{id}` | Update an alert |
+| DELETE | `/api/alerts/{id}` | Delete an alert |
+
+### WebSocket
+
+- **Endpoint**: `ws://localhost:8080/ws/notifications?userId={id}`
+- **Protocol**: Raw WebSocket (no STOMP)
+- **Format**: JSON messages with `type`, `title`, `body`, `marketId`, `alertType`, `currentPrice`
+- **Reconnection**: Frontend auto-reconnects every 5 seconds on disconnect
+
+### How it works
+
+1. User creates an alert via `POST /api/alerts`
+2. `NotificationScheduler` runs every 30s calling `AlertService.checkAlerts()`
+3. For each active alert, the service compares cached prices from `PriceCacheService` against the target
+4. When a condition is met, the alert is marked as `triggered` and a `NotificationMessage` is pushed via WebSocket to the user
+5. The frontend displays a toast notification
+
+---
 
 Create a `.env` file at the project root:
 
@@ -258,20 +304,29 @@ polymarket-backend/
 │   ├── PolymarketBackendApplication.java
 │   ├── config/
 │   │   ├── CorsConfig.java
-│   │   └── SimulatorProperties.java
+│   │   ├── NotificationScheduler.java         # 30s alert check scheduler
+│   │   ├── SimulatorProperties.java
+│   │   └── WebSocketConfig.java               # WebSocket handler registration
 │   ├── controller/
+│   │   ├── AlertController.java               # /api/alerts
 │   │   ├── GlobalExceptionHandler.java
-│   │   ├── MarketProxyController.java      # /api/markets (normalized)
-│   │   ├── PolymarketController.java       # /api/gamma/markets
-│   │   ├── PolyRouterMarketController.java # /api/polyrouter/markets
-│   │   ├── SimulatorController.java        # /api/simulator
-│   │   ├── UserController.java             # /api/users
-│   │   └── UserGraphQLController.java      # GraphQL
-│   ├── dto/                                # Request/response DTOs
-│   ├── enums/                              # PositionSide, Status, MarketType
-│   ├── model/                              # JPA entities + external models
-│   ├── repository/                         # Spring Data JPA repositories
-│   └── service/                            # Business logic
+│   │   ├── MarketProxyController.java         # /api/markets (normalized)
+│   │   ├── PolymarketController.java          # /api/gamma/markets
+│   │   ├── PolyRouterMarketController.java    # /api/polyrouter/markets
+│   │   ├── SimulatorController.java           # /api/simulator
+│   │   ├── UserController.java               # /api/users
+│   │   └── UserGraphQLController.java         # GraphQL
+│   ├── dto/                                   # Request/response DTOs
+│   ├── enums/                                 # PositionSide, Status, MarketType, AlertType
+│   ├── model/
+│   │   ├── entity/
+│   │   │   ├── Alert.java                     # User alert configuration
+│   │   │   └── ...                            # Position, SimulatorSession, PerformanceSnapshot
+│   │   └── ...                                # External API models
+│   ├── repository/                            # Spring Data JPA repositories
+│   └── service/
+│       ├── AlertService.java                  # Alert CRUD + condition checking
+│       ├── NotificationWebSocketHandler.java  # WebSocket session manager
 │       ├── PolymarketService.java
 │       ├── PolyRouterMarketService.java
 │       ├── PriceCacheService.java
