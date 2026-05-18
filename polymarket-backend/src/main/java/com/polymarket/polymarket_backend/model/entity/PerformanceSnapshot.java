@@ -17,8 +17,8 @@ public class PerformanceSnapshot {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "portfolio_value")
-    private double portfolioValue;
+    @Column(name = "\"value\"")
+    private double value;
 
     private long timestamp;
 
@@ -37,12 +37,12 @@ public class PerformanceSnapshot {
         this.id = id;
     }
 
-    public double getPortfolioValue() {
-        return portfolioValue;
+    public double getValue() {
+        return value;
     }
 
-    public void setPortfolioValue(double portfolioValue) {
-        this.portfolioValue = portfolioValue;
+    public void setValue(double value) {
+        this.value = value;
     }
 
     public long getTimestamp() {

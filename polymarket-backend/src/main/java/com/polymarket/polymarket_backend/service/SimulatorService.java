@@ -197,7 +197,7 @@ public class SimulatorService {
 
         double portfolioValue = computePortfolioValue(session);
         PerformanceSnapshot snapshot = new PerformanceSnapshot();
-        snapshot.setPortfolioValue(portfolioValue);
+        snapshot.setValue(portfolioValue);
         snapshot.setTimestamp(now);
         snapshot.setSession(session);
         snapshotRepository.save(snapshot);
