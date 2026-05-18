@@ -12,11 +12,13 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class PriceCacheService {
 
     private static final Logger log = LoggerFactory.getLogger(PriceCacheService.class);
+    public static final String DUMMY_MARKET_ID = "dummy_market";
 
     private final ConcurrentHashMap<String, Double> priceCache = new ConcurrentHashMap<>();
     private final PositionRepository positionRepository;
@@ -40,47 +42,67 @@ public class PriceCacheService {
         var marketIds = openPositions.stream()
                 .map(p -> p.getMarketId())
                 .distinct()
+                .filter(id -> !DUMMY_MARKET_ID.equals(id))
                 .toList();
 
-        if (marketIds.isEmpty()) {
-            log.debug("No open positions to refresh prices for");
-            return;
-        }
+        if (!marketIds.isEmpty()) {
+            log.info("Refreshing prices for {} market(s): {}", marketIds.size(), marketIds);
 
-        log.info("Refreshing prices for {} market(s): {}", marketIds.size(), marketIds);
-
-        // Batch: try list endpoint first for all tracked markets
-        try {
-            List<PolyRouterMarket> activeMarkets = polyRouterMarketService.getActiveMarkets().collectList().block();
-            if (activeMarkets != null) {
-                for (String marketId : marketIds) {
-                    boolean found = false;
-                    for (PolyRouterMarket m : activeMarkets) {
-                        if (marketId.equals(m.getId()) || marketId.equals(m.getPlatformId())) {
-                            if (m.getCurrentPrices() != null && !m.getCurrentPrices().isEmpty()) {
-                                cachePrices(marketId, m.getCurrentPrices());
-                                found = true;
-                                break;
+            try {
+                List<PolyRouterMarket> activeMarkets = polyRouterMarketService.getActiveMarkets().collectList().block();
+                if (activeMarkets != null) {
+                    for (String marketId : marketIds) {
+                        boolean found = false;
+                        for (PolyRouterMarket m : activeMarkets) {
+                            if (marketId.equals(m.getId()) || marketId.equals(m.getPlatformId())) {
+                                if (m.getCurrentPrices() != null && !m.getCurrentPrices().isEmpty()) {
+                                    cachePrices(marketId, m.getCurrentPrices());
+                                    found = true;
+                                    break;
+                                }
                             }
                         }
+                        if (!found) {
+                            refreshPrice(marketId);
+                        }
                     }
-                    if (!found) {
+                } else {
+                    for (String marketId : marketIds) {
                         refreshPrice(marketId);
                     }
                 }
-                return;
+            } catch (Exception e) {
+                log.warn("Batch price fetch failed, falling back to individual lookups: {}", e.getMessage());
+                for (String marketId : marketIds) {
+                    refreshPrice(marketId);
+                }
             }
-        } catch (Exception e) {
-            log.warn("Batch price fetch failed, falling back to individual lookups: {}", e.getMessage());
         }
 
-        // Fallback: individual lookups
-        for (String marketId : marketIds) {
-            refreshPrice(marketId);
-        }
+        refreshDummyMarket();
+    }
+
+    public void refreshDummyMarket() {
+        double yesPrice = ThreadLocalRandom.current().nextDouble(0.01, 0.99);
+        double noPrice = Math.round((1.0 - yesPrice) * 1000.0) / 1000.0;
+        yesPrice = Math.round(yesPrice * 1000.0) / 1000.0;
+        String yesKey = DUMMY_MARKET_ID + ":1";
+        String noKey = DUMMY_MARKET_ID + ":0";
+        Double oldYes = priceCache.put(yesKey, yesPrice);
+        Double oldNo = priceCache.put(noKey, noPrice);
+        log.info("DUMMY market={} yes old={} new={} no old={} new={}",
+                DUMMY_MARKET_ID,
+                oldYes != null ? String.format("%.3f", oldYes) : "null",
+                String.format("%.3f", yesPrice),
+                oldNo != null ? String.format("%.3f", oldNo) : "null",
+                String.format("%.3f", noPrice));
     }
 
     public void refreshPrice(String marketId) {
+        if (DUMMY_MARKET_ID.equals(marketId)) {
+            refreshDummyMarket();
+            return;
+        }
         try {
             PolyRouterMarket market = polyRouterMarketService.getMarketById(marketId).block();
             if (market != null && market.getCurrentPrices() != null && !market.getCurrentPrices().isEmpty()) {
@@ -120,10 +142,14 @@ public class PriceCacheService {
                 case "no" -> "0";
                 default -> outcomeKey;
             };
-            double price = entry.getValue().getPrice();
+            double newPrice = entry.getValue().getPrice();
             String k = marketId + ":" + canonicalIndex;
-            priceCache.put(k, price);
-            log.debug("Cached price for {} = {} (from API key '{}')", k, price, entry.getKey());
+            Double oldPrice = priceCache.put(k, newPrice);
+            log.info("Price {} market={} outcomeKey={} index={} old={} new={}",
+                    oldPrice != null ? "UPDATE" : "CACHE",
+                    marketId, entry.getKey(), canonicalIndex,
+                    oldPrice != null ? String.format("%.4f", oldPrice) : "null",
+                    String.format("%.4f", newPrice));
         }
         log.info("Refreshed {} prices for market {}", prices.size(), marketId);
     }

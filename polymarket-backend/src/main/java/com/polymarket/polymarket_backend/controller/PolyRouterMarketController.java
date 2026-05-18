@@ -2,6 +2,7 @@ package com.polymarket.polymarket_backend.controller;
 
 import com.polymarket.polymarket_backend.model.PolyRouterMarket;
 import com.polymarket.polymarket_backend.service.PolyRouterMarketService;
+import com.polymarket.polymarket_backend.service.PriceCacheService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,6 +29,9 @@ public class PolyRouterMarketController {
 
     @GetMapping("/{id}")
     public Mono<ResponseEntity<PolyRouterMarket>> getMarketById(@PathVariable String id) {
+        if (PriceCacheService.DUMMY_MARKET_ID.equals(id)) {
+            return Mono.just(ResponseEntity.notFound().build());
+        }
         return polyRouterMarketService.getMarketById(id)
                 .map(ResponseEntity::ok)
                 .defaultIfEmpty(ResponseEntity.notFound().build());

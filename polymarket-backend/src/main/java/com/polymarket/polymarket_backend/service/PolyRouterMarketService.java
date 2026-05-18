@@ -37,7 +37,13 @@ public class PolyRouterMarketService {
         return webClient.get()
                 .uri("/markets/{id}", id)
                 .retrieve()
-                .bodyToMono(PolyRouterMarket.class);
+                .bodyToMono(MarketListResponse.class)
+                .flatMap(response -> {
+                    if (response.getMarkets() != null && !response.getMarkets().isEmpty()) {
+                        return Mono.just(response.getMarkets().get(0));
+                    }
+                    return Mono.empty();
+                });
     }
 
     public Flux<PolyRouterMarket> getMarketsByCategory(String category) {
@@ -68,7 +74,7 @@ public class PolyRouterMarketService {
 
     public Flux<PolyRouterMarket> getActiveMarkets() {
         return webClient.get()
-                .uri("/markets?active=true&closed=false&limit=50" + PLATFORM_PARAM)
+                .uri("/markets" + PLATFORM_PARAM + "&limit=100&status=open")
                 .retrieve()
                 .bodyToMono(MarketListResponse.class)
                 .flatMapMany(response -> Flux.fromIterable(

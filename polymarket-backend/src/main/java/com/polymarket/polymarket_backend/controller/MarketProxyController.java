@@ -4,6 +4,7 @@ import com.polymarket.polymarket_backend.dto.NormalizedMarketDTO;
 import com.polymarket.polymarket_backend.model.PolyRouterMarket;
 import com.polymarket.polymarket_backend.model.PriceDetail;
 import com.polymarket.polymarket_backend.service.PolyRouterMarketService;
+import com.polymarket.polymarket_backend.service.PriceCacheService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,9 +25,12 @@ import java.util.stream.Collectors;
 public class MarketProxyController {
 
     private final PolyRouterMarketService polyRouterMarketService;
+    private final PriceCacheService priceCacheService;
 
-    public MarketProxyController(PolyRouterMarketService polyRouterMarketService) {
+    public MarketProxyController(PolyRouterMarketService polyRouterMarketService,
+                                 PriceCacheService priceCacheService) {
         this.polyRouterMarketService = polyRouterMarketService;
+        this.priceCacheService = priceCacheService;
     }
 
     @GetMapping
@@ -42,11 +46,15 @@ public class MarketProxyController {
         } else {
             markets = polyRouterMarketService.getAllMarkets();
         }
-        return markets.map(this::toNormalized);
+        return markets.map(this::toNormalized)
+                .concatWithValues(buildDummyMarket());
     }
 
     @GetMapping("/{id}")
     public Mono<ResponseEntity<NormalizedMarketDTO>> getMarketById(@PathVariable String id) {
+        if (PriceCacheService.DUMMY_MARKET_ID.equals(id)) {
+            return Mono.just(ResponseEntity.ok(buildDummyMarket()));
+        }
         return polyRouterMarketService.getMarketById(id)
                 .map(m -> ResponseEntity.ok(toNormalized(m)))
                 .defaultIfEmpty(ResponseEntity.notFound().build());
@@ -54,6 +62,14 @@ public class MarketProxyController {
 
     @GetMapping("/{id}/price")
     public Mono<ResponseEntity<Map<String, Double>>> getMarketPrice(@PathVariable String id) {
+        if (PriceCacheService.DUMMY_MARKET_ID.equals(id)) {
+            Double yesPrice = priceCacheService.getPrice(id, "YES");
+            Double noPrice = priceCacheService.getPrice(id, "NO");
+            if (yesPrice == null || noPrice == null) {
+                return Mono.just(ResponseEntity.notFound().build());
+            }
+            return Mono.just(ResponseEntity.ok(Map.of("yes", yesPrice, "no", noPrice)));
+        }
         return polyRouterMarketService.getMarketById(id)
                 .map(this::toPriceResponse)
                 .defaultIfEmpty(ResponseEntity.notFound().build());
@@ -72,9 +88,26 @@ public class MarketProxyController {
 
     @GetMapping("/{id}/trades")
     public Mono<ResponseEntity<String>> getMarketTrades(@PathVariable String id) {
+        if (PriceCacheService.DUMMY_MARKET_ID.equals(id)) {
+            return Mono.just(ResponseEntity.ok("{\"message\":\"Dummy market has no trades\"}"));
+        }
         return polyRouterMarketService.getMarketById(id)
                 .map(m -> ResponseEntity.ok("{\"message\":\"Trade history proxy - not yet implemented\"}"))
                 .defaultIfEmpty(ResponseEntity.notFound().build());
+    }
+
+    private NormalizedMarketDTO buildDummyMarket() {
+        Double yesPrice = priceCacheService.getPrice(PriceCacheService.DUMMY_MARKET_ID, "YES");
+        Double noPrice = priceCacheService.getPrice(PriceCacheService.DUMMY_MARKET_ID, "NO");
+        NormalizedMarketDTO dto = new NormalizedMarketDTO();
+        dto.setId(PriceCacheService.DUMMY_MARKET_ID);
+        dto.setQuestion("Simulated dummy market (testing price fluctuation)");
+        dto.setStatus("open");
+        if (yesPrice != null && noPrice != null) {
+            dto.setPrices(List.of(String.valueOf(yesPrice), String.valueOf(noPrice)));
+            dto.setOutcomes(List.of("yes", "no"));
+        }
+        return dto;
     }
 
     private NormalizedMarketDTO toNormalized(PolyRouterMarket market) {
