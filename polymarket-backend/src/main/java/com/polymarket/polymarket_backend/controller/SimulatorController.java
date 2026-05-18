@@ -6,6 +6,7 @@ import com.polymarket.polymarket_backend.dto.PortfolioValueDTO;
 import com.polymarket.polymarket_backend.dto.PositionDTO;
 import com.polymarket.polymarket_backend.dto.SimulatorStateDTO;
 import com.polymarket.polymarket_backend.model.entity.PerformanceSnapshot;
+import com.polymarket.polymarket_backend.service.PriceCacheService;
 import com.polymarket.polymarket_backend.service.SimulatorService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -20,15 +21,19 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/simulator")
 public class SimulatorController {
 
     private final SimulatorService simulatorService;
+    private final PriceCacheService priceCacheService;
 
-    public SimulatorController(SimulatorService simulatorService) {
+    public SimulatorController(SimulatorService simulatorService,
+                               PriceCacheService priceCacheService) {
         this.simulatorService = simulatorService;
+        this.priceCacheService = priceCacheService;
     }
 
     @PostMapping("/start")
@@ -75,5 +80,16 @@ public class SimulatorController {
     @GetMapping("/portfolio-value")
     public PortfolioValueDTO getPortfolioValue() {
         return simulatorService.getPortfolioValue();
+    }
+
+    @GetMapping("/cache")
+    public Map<String, Double> getPriceCache() {
+        return priceCacheService.getCacheContents();
+    }
+
+    @PostMapping("/cache/{marketId}/refresh")
+    public Map<String, Double> refreshMarketPrice(@PathVariable String marketId) {
+        priceCacheService.refreshPrice(marketId);
+        return priceCacheService.getCacheContents();
     }
 }

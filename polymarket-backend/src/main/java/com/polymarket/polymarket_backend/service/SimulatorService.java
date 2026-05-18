@@ -106,6 +106,7 @@ public class SimulatorService {
         session.setUsedBalance(session.getUsedBalance() + req.getAmount());
         sessionRepository.save(session);
 
+        priceCacheService.refreshPrice(req.getMarketId());
         recordSnapshotForSession(session, false);
 
         return toPositionDTO(position);

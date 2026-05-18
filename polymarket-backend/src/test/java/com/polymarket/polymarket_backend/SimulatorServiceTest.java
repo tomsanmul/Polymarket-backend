@@ -98,6 +98,8 @@ class SimulatorServiceTest {
         SimulatorSession saved = sessionCaptor.getAllValues().get(sessionCaptor.getAllValues().size() - 1);
         assertEquals(99000.0, saved.getBalance(), 0.001);
         assertEquals(1000.0, saved.getUsedBalance(), 0.001);
+
+        verify(priceCacheService).refreshPrice("m1");
     }
 
     @Test
@@ -120,6 +122,8 @@ class SimulatorServiceTest {
         verify(positionRepository).save(positionCaptor.capture());
         Position saved = positionCaptor.getValue();
         assertEquals(2000, saved.getShares());
+
+        verify(priceCacheService).refreshPrice("m1");
     }
 
     @Test
@@ -201,6 +205,24 @@ class SimulatorServiceTest {
         assertEquals(100000.0, result.getPortfolioValue(), 0.001);
         assertEquals(0.0, result.getTotalPnl(), 0.001);
         assertEquals(60000.0, result.getOpenPositionsValue(), 0.001);
+        assertEquals(40000.0, result.getBalance(), 0.001);
+    }
+
+    @Test
+    void portfolioValue_usesLivePriceWhenCached() {
+        SimulatorSession session = createEnabledSession(40000, 60000);
+        Position p1 = createOpenPosition("p1", 30000, 0.5, 60000);
+        Position p2 = createOpenPosition("p2", 30000, 0.5, 60000);
+
+        when(sessionRepository.findFirstByEnabledTrue()).thenReturn(Optional.of(session));
+        when(positionRepository.findByClosedFalse()).thenReturn(List.of(p1, p2));
+        when(priceCacheService.getPrice("m1", "YES")).thenReturn(0.75);
+
+        PortfolioValueDTO result = service.getPortfolioValue();
+
+        assertEquals(130000.0, result.getPortfolioValue(), 0.001);
+        assertEquals(30000.0, result.getTotalPnl(), 0.001);
+        assertEquals(90000.0, result.getOpenPositionsValue(), 0.001);
         assertEquals(40000.0, result.getBalance(), 0.001);
     }
 

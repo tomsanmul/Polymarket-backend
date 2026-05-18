@@ -52,4 +52,38 @@ class PriceCacheServiceTest {
         assertEquals(0.65, priceCacheService.getPrice("m1", "YES"));
         assertEquals(0.35, priceCacheService.getPrice("m1", "NO"));
     }
+
+    @Test
+    void getCacheContents_returnsCopy() {
+        PolyRouterMarket market = new PolyRouterMarket();
+        PriceDetail price = new PriceDetail();
+        price.setPrice(0.75);
+        market.setCurrentPrices(Map.of("1", price));
+
+        when(polyRouterMarketService.getMarketById("m1")).thenReturn(Mono.just(market));
+
+        priceCacheService.refreshPrice("m1");
+
+        Map<String, Double> contents = priceCacheService.getCacheContents();
+        assertEquals(1, contents.size());
+        assertEquals(0.75, contents.get("m1:1"));
+    }
+
+    @Test
+    void refreshPrice_handlesApiFailureGracefully() {
+        when(polyRouterMarketService.getMarketById("m1")).thenThrow(new RuntimeException("API error"));
+
+        priceCacheService.refreshPrice("m1");
+
+        assertNull(priceCacheService.getPrice("m1", "YES"));
+    }
+
+    @Test
+    void refreshPrice_handlesNullMarketGracefully() {
+        when(polyRouterMarketService.getMarketById("m1")).thenReturn(Mono.empty());
+
+        priceCacheService.refreshPrice("m1");
+
+        assertNull(priceCacheService.getPrice("m1", "YES"));
+    }
 }

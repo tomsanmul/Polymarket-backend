@@ -12,6 +12,7 @@ import com.polymarket.polymarket_backend.dto.PortfolioValueDTO;
 import com.polymarket.polymarket_backend.dto.PositionDTO;
 import com.polymarket.polymarket_backend.dto.SimulatorStateDTO;
 import com.polymarket.polymarket_backend.model.entity.PerformanceSnapshot;
+import com.polymarket.polymarket_backend.service.PriceCacheService;
 import com.polymarket.polymarket_backend.service.SimulatorService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,7 @@ class SimulatorControllerTest {
     @Autowired private MockMvc mockMvc;
 
     @MockitoBean private SimulatorService simulatorService;
+    @MockitoBean private PriceCacheService priceCacheService;
 
     @Test
     void startSession_returnsState() throws Exception {
