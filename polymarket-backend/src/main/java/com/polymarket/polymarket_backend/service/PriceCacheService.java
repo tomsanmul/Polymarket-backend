@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -47,6 +48,33 @@ public class PriceCacheService {
         }
 
         log.info("Refreshing prices for {} market(s): {}", marketIds.size(), marketIds);
+
+        // Batch: try list endpoint first for all tracked markets
+        try {
+            List<PolyRouterMarket> activeMarkets = polyRouterMarketService.getActiveMarkets().collectList().block();
+            if (activeMarkets != null) {
+                for (String marketId : marketIds) {
+                    boolean found = false;
+                    for (PolyRouterMarket m : activeMarkets) {
+                        if (marketId.equals(m.getId()) || marketId.equals(m.getPlatformId())) {
+                            if (m.getCurrentPrices() != null && !m.getCurrentPrices().isEmpty()) {
+                                cachePrices(marketId, m.getCurrentPrices());
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!found) {
+                        refreshPrice(marketId);
+                    }
+                }
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("Batch price fetch failed, falling back to individual lookups: {}", e.getMessage());
+        }
+
+        // Fallback: individual lookups
         for (String marketId : marketIds) {
             refreshPrice(marketId);
         }
@@ -55,22 +83,26 @@ public class PriceCacheService {
     public void refreshPrice(String marketId) {
         try {
             PolyRouterMarket market = polyRouterMarketService.getMarketById(marketId).block();
-            if (market == null) {
-                log.warn("PolyRouter returned null for market {}", marketId);
+            if (market != null && market.getCurrentPrices() != null && !market.getCurrentPrices().isEmpty()) {
+                cachePrices(marketId, market.getCurrentPrices());
                 return;
             }
-            if (market.getCurrentPrices() == null || market.getCurrentPrices().isEmpty()) {
-                log.warn("PolyRouter returned no currentPrices for market {}", marketId);
-                return;
+
+            log.warn("Single-market lookup returned no prices for {}; trying list endpoint fallback", marketId);
+            List<PolyRouterMarket> activeMarkets = polyRouterMarketService.getActiveMarkets().collectList().block();
+            if (activeMarkets != null) {
+                for (PolyRouterMarket m : activeMarkets) {
+                    if (marketId.equals(m.getId()) || marketId.equals(m.getPlatformId())) {
+                        if (m.getCurrentPrices() != null && !m.getCurrentPrices().isEmpty()) {
+                            cachePrices(marketId, m.getCurrentPrices());
+                            log.info("Found prices via list endpoint fallback for market {} (matched {})",
+                                    marketId, marketId.equals(m.getId()) ? "id" : "platformId");
+                            return;
+                        }
+                    }
+                }
+                log.warn("Market {} not found in active markets list ({} total)", marketId, activeMarkets.size());
             }
-            for (Map.Entry<String, PriceDetail> entry : market.getCurrentPrices().entrySet()) {
-                String outcomeIndex = entry.getKey();
-                double price = entry.getValue().getPrice();
-                String cacheKey = marketId + ":" + outcomeIndex;
-                priceCache.put(cacheKey, price);
-                log.debug("Cached price for {} = {}", cacheKey, price);
-            }
-            log.info("Refreshed {} prices for market {}", market.getCurrentPrices().size(), marketId);
         } catch (Exception e) {
             log.warn("Failed to refresh price for market {}: {}", marketId, e.getMessage());
         }
@@ -78,6 +110,17 @@ public class PriceCacheService {
 
     public Map<String, Double> getCacheContents() {
         return Map.copyOf(priceCache);
+    }
+
+    private void cachePrices(String marketId, Map<String, PriceDetail> prices) {
+        for (Map.Entry<String, PriceDetail> entry : prices.entrySet()) {
+            String outcomeIndex = entry.getKey();
+            double price = entry.getValue().getPrice();
+            String cacheKey = marketId + ":" + outcomeIndex;
+            priceCache.put(cacheKey, price);
+            log.debug("Cached price for {} = {}", cacheKey, price);
+        }
+        log.info("Refreshed {} prices for market {}", prices.size(), marketId);
     }
 
     private static String cacheKey(String marketId, String side) {

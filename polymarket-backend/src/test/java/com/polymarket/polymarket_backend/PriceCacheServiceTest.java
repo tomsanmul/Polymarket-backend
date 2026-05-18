@@ -13,8 +13,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.Map;
 
 @ExtendWith(MockitoExtension.class)
@@ -81,9 +83,45 @@ class PriceCacheServiceTest {
     @Test
     void refreshPrice_handlesNullMarketGracefully() {
         when(polyRouterMarketService.getMarketById("m1")).thenReturn(Mono.empty());
+        when(polyRouterMarketService.getActiveMarkets()).thenReturn(Flux.empty());
 
         priceCacheService.refreshPrice("m1");
 
         assertNull(priceCacheService.getPrice("m1", "YES"));
+    }
+
+    @Test
+    void refreshPrice_fallsBackToListEndpoint() {
+        when(polyRouterMarketService.getMarketById("m1")).thenReturn(Mono.empty());
+
+        PriceDetail fallbackPrice = new PriceDetail();
+        fallbackPrice.setPrice(0.55);
+        PolyRouterMarket listMarket = new PolyRouterMarket();
+        listMarket.setId("m1");
+        listMarket.setCurrentPrices(Map.of("1", fallbackPrice));
+
+        when(polyRouterMarketService.getActiveMarkets()).thenReturn(Flux.just(listMarket));
+
+        priceCacheService.refreshPrice("m1");
+
+        assertEquals(0.55, priceCacheService.getPrice("m1", "YES"));
+    }
+
+    @Test
+    void refreshPrice_fallsBackToListEndpointByPlatformId() {
+        when(polyRouterMarketService.getMarketById("platform_123")).thenReturn(Mono.empty());
+
+        PriceDetail fallbackPrice = new PriceDetail();
+        fallbackPrice.setPrice(0.42);
+        PolyRouterMarket listMarket = new PolyRouterMarket();
+        listMarket.setId("poly_id_1");
+        listMarket.setPlatformId("platform_123");
+        listMarket.setCurrentPrices(Map.of("0", fallbackPrice));
+
+        when(polyRouterMarketService.getActiveMarkets()).thenReturn(Flux.just(listMarket));
+
+        priceCacheService.refreshPrice("platform_123");
+
+        assertEquals(0.42, priceCacheService.getPrice("platform_123", "NO"));
     }
 }
